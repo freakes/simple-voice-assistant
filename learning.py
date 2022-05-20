@@ -22,8 +22,6 @@ dialogues_file = 'dialogues.txt'  # Файл с диалогами для лог
 
 
 class GenerateReplica:
-    def __init__(self):
-        pass
 
     @staticmethod
     def clean_str(rr):
@@ -39,7 +37,7 @@ class GenerateReplica:
     for block in blocks:
         replicas = block.split('\\')[:2]
         if len(replicas) == 2:
-            pair = [clean_str(replicas[0]), clean_str(replicas[1])]
+            pair = [GenerateReplica.clean_str(replicas[0]), GenerateReplica.clean_str(replicas[1])]
             if pair[0] and pair[1]:
                 dataset.append(pair)
     print(dataset)
