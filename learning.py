@@ -8,6 +8,7 @@ import time
 from random import randint as rnd
 from win10toast import ToastNotifier
 import pyperclip
+import pyglet
 import requests as r
 import webbrowser
 import os
@@ -21,36 +22,38 @@ alphabet = ' 1234567890-йцукенгшщзхъфывапролджэячсми
 dialogues_file = 'dialogues.txt'  # Файл с диалогами для логистической регрессии
 
 
+def clean_str(rr):
+    rr = rr
+    rr = [c for c in rr if c in alphabet]
+    return ''.join(rr)
+
+
+with open('dialogues.txt', encoding='utf-8') as f:
+    content = f.read()
+blocks = content.split('\n')
+dataset = []
+
+for block in blocks:
+    replicas = block.split('\\')[:2]
+    if len(replicas) == 2:
+        pair = [clean_str(replicas[0]), clean_str(replicas[1])]
+        if pair[0] and pair[1]:
+            dataset.append(pair)
+print(dataset)
+
+X_text = []
+y = []
+for question, answer in dataset[:10000]:
+    X_text.append(question)
+    y += [answer]
+vectorizer = CountVectorizer()
+X = vectorizer.fit_transform(X_text)
+clf = LogisticRegression()
+clf.fit(X, y)
+
+
 class GenerateReplica:
-
-    @staticmethod
-    def clean_str(rr):
-        rr = rr
-        rr = [c for c in rr if c in alphabet]
-        return ''.join(rr)
-
-    with open('dialogues.txt', encoding='utf-8') as f:
-        content = f.read()
-    blocks = content.split('\n')
-    dataset = []
-
-    for block in blocks:
-        replicas = block.split('\\')[:2]
-        if len(replicas) == 2:
-            pair = [GenerateReplica.clean_str(replicas[0]), GenerateReplica.clean_str(replicas[1])]
-            if pair[0] and pair[1]:
-                dataset.append(pair)
-    print(dataset)
-
-    X_text = []
-    y = []
-    for question, answer in dataset[:10000]:
-        X_text.append(question)
-        y += [answer]
-    vectorizer = CountVectorizer()
-    X = vectorizer.fit_transform(X_text)
-    clf = LogisticRegression()
-    clf.fit(X, y)
+    global clf, vectorizer
 
     @staticmethod
     def get_generative_replica(text):
@@ -72,7 +75,7 @@ class PasswordGenerator:
 
         pyperclip.copy(password)
         toaster = ToastNotifier()
-        toaster.show_toast(f'Пароль скопирован в буфер обмена', icon_path='../lock.ico', msg='Мия', duration=3)
+        toaster.show_toast(f'Пароль скопирован в буфер обмена', icon_path='lock.ico', msg='Мия', duration=3)
         pyperclip.copy(password)
 
 
@@ -126,6 +129,7 @@ class Hello:
             return f'Добрый вечер, {name}'
         else:
             return f'Доброй ночи, {name}'
+
 
 # Парсинг с сайта синонимайзера
 # class Synonym:
@@ -199,7 +203,7 @@ class Translate:
         rec = sr.Recognizer()
         rec.dynamic_energy_threshold = False
         rec.energy_threshold = 1000
-        rec.pause_threshold = 0.5
+        rec.pause_threshold = 0.4
 
         with sr.Microphone() as source:
             print('Скажите что-то: ')
@@ -216,6 +220,10 @@ class Translate:
         return recognized_text
 
 
+rec = sr.Recognizer()
+rec.pause_threshold = 1
+
+
 class Talking:
     def __init__(self):
         self.was_hello = False
@@ -225,22 +233,25 @@ class Talking:
 
     @staticmethod
     def command():
-        global say_hello, T
+        global say_hello, T, rec
         h = Hello()
-        rec = sr.Recognizer()
 
         with sr.Microphone() as source:
             rec.adjust_for_ambient_noise(source, duration=1)
-            audio = rec.listen(source)
+            if T.was_hello:
+                song = pyglet.media.load('start.mp3')
+                song.play()
+                pyglet.app.run()
+            print('start speak')
+            audio = rec.listen(source, phrase_time_limit=3)
         try:
-            print(213231)
             recognized_text = rec.recognize_google(audio, language='ru-RU')
-            if recognized_text == 'Привет Мия' or recognized_text == 'привет мия' \
-                    or recognized_text == 'Привет мия' or recognized_text == 'привет Мия':
+            print(recognized_text)
+            if recognized_text == 'Привет Мия':
                 T.set_was_hello(True)
                 if say_hello:
                     Communication.talk(h.get_hi()[rnd(0, 3)])
-                say_hello = False
+                    say_hello = False
             return recognized_text
 
         except sr.UnknownValueError:
@@ -284,39 +295,40 @@ class Communication:
         _text_l = self._text.split(' ')
         get_reply = handle_command(_text_l)
         # Погода
-        if get_reply == 'сверяю термометры':
-            Communication.talk(Weather().parse())
-        # Переводчик
-        if get_reply == 'слушаю':
-            tr = Translate()
-            tr.translate(tr.command())
-        # Прощание
-        if get_reply == 'уже скучаю':
-            T.set_was_hello(False)
+        if T.was_hello:
+            if get_reply == 'сверяю термометры':
+                Communication.talk(Weather().parse())
+            # Переводчик
+            if get_reply == 'слушаю':
+                tr = Translate()
+                tr.translate(tr.command())
+            # Прощание
+            if get_reply == 'уже скучаю':
+                T.set_was_hello(False)
 
-        if get_reply == 'открываю discord':
-            oa.open(oa.discord_path)
+            if get_reply == 'открываю discord':
+                oa.open(oa.discord_path)
 
-        if get_reply == 'открываю telegram':
-            oa.open(oa.telegram_path)
+            if get_reply == 'открываю telegram':
+                oa.open(oa.telegram_path)
 
-        if get_reply == 'открываю журнал':
-            op.open(op.dstu)
+            if get_reply == 'открываю журнал':
+                op.open(op.dstu)
 
-        if get_reply == 'открываю вконтакте':
-            op.open(op.vk)
+            if get_reply == 'открываю вконтакте':
+                op.open(op.vk)
 
-        if get_reply == 'генерирую пароль':
-            PasswordGenerator.generate()
+            if get_reply == 'генерирую пароль':
+                PasswordGenerator.generate()
 
-        if get_reply == 'открываю ящик':
-            op.open(op.gmail)
+            if get_reply == 'открываю ящик':
+                op.open(op.gmail)
 
-        if get_reply == 'открываю youtube':
-            op.open(op.yt)
+            if get_reply == 'открываю youtube':
+                op.open(op.yt)
 
-        if get_reply == 'открываю яндекс карты':
-            op.open(op.ymaps)
+            if get_reply == 'открываю яндекс карты':
+                op.open(op.ymaps)
 
 
 while True:
